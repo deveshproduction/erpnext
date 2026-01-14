@@ -1,0 +1,78 @@
+services:
+  backend:
+    image: devpro2375/my-erpnext:latest
+    command:
+      - bash
+      - -ec
+      - |
+        wait-for-it -t 120 db:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        bench serve --bind 0.0.0.0 --port 8000
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      - db
+      - redis-cache
+      - redis-queue
+
+  frontend:
+    image: frappe/erpnext:v15.94.1
+    command:
+      - nginx-entrypoint.sh
+    environment:
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: frontend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+
+  db:
+    image: mariadb:10.6
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+    volumes:
+      - db_data:/var/lib/mysql
+
+  redis-cache:
+    image: redis:alpine
+
+  redis-queue:
+    image: redis:alpine
+
+  create-site:
+    image: devpro2375/my-erpnext:latest
+    command:
+      - bash
+      - -ec
+      - |
+        wait-for-it -t 120 db:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        
+        if [ ! -f "sites/frontend/site_config.json" ]; then
+          echo "Creating new site...";
+          bench new-site frontend \
+            --mariadb-root-password=admin \
+            --admin-password=admin \
+            --install-app erpnext \
+            --install-app hrms \
+            --set-default;
+          echo "Site created successfully!";
+        else
+          echo "Site already exists";
+        fi
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    depends_on:
+      - db
+
+volumes:
+  sites:
+  db_data:

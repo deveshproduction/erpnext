@@ -1,0 +1,10 @@
+FROM frappe/erpnext:v15
+
+USER frappe
+
+WORKDIR /home/frappe/frappe-bench
+
+# Get HRMS app without building
+RUN bench get-app --branch version-15 --skip-assets hrms https://github.com/frappe/hrms
+
+USER root
